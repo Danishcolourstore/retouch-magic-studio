@@ -5,9 +5,10 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import BottomSheet from "@/components/BottomSheet";
 import PresetButtons from "@/components/PresetButtons";
+import AdvancedPanel from "@/components/AdvancedPanel";
 import { presets, sliderConfig, defaultValues } from "@/utils/filters";
-import { getAISuggestion, type AISuggestionResult, type LightingCondition, type PhotoContext } from "@/lib/openai";
-import type { RetouchValues } from "@/types";
+import { getAISuggestion } from "@/lib/openai";
+import type { RetouchValues, AISuggestionResult } from "@/types";
 import { toast } from "sonner";
 
 interface ControlPanelProps {
@@ -53,7 +54,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const handleAISuggest = async () => {
     setAiLoading(true);
     try {
-      const result = await getAISuggestion(values);
+      const result = await getAISuggestion(values, {
+        faceDetected,
+        skinCoverage: faceDetected ? 30 : 0,
+        outfitDetected: true,
+      });
       setAiResult(result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "AI suggestion failed";
@@ -105,9 +110,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           )}
         </div>
         {aiResult && (
-          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-            💡 {aiResult.suggestion}
-          </p>
+          <>
+            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+              💡 {aiResult.suggestion}
+            </p>
+            <AdvancedPanel advanced={aiResult.advanced} />
+          </>
         )}
       </div>
 
