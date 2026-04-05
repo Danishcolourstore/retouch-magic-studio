@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from "react";
-import { buildFilterString } from "@/utils/filters";
+import React, { useState, useCallback, useMemo } from "react";
+import { buildFilterString, buildBlurFilterString } from "@/utils/filters";
+import { buildMultiFaceClipPath, type FaceRegion } from "@/lib/mediapipe";
 import { Badge } from "@/components/ui/badge";
 import type { RetouchValues } from "@/types";
 
@@ -8,6 +9,8 @@ interface ImagePreviewProps {
   width: number;
   height: number;
   values: RetouchValues;
+  faceRegions: FaceRegion[];
+  faceRetouchEnabled: boolean;
 }
 
 const ImagePreview: React.FC<ImagePreviewProps> = ({
@@ -15,13 +18,32 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   width,
   height,
   values,
+  faceRegions,
+  faceRetouchEnabled,
 }) => {
   const [showOriginal, setShowOriginal] = useState(false);
 
   const handlePointerDown = useCallback(() => setShowOriginal(true), []);
   const handlePointerUp = useCallback(() => setShowOriginal(false), []);
 
-  const filterStyle = showOriginal ? "none" : buildFilterString(values);
+  const useFaceMode =
+    faceRetouchEnabled &&
+    faceRegions.length > 0 &&
+    values.skinSmooth > 0 &&
+    !showOriginal;
+
+  // Base filter: all filters, but exclude blur when face mode is active
+  const baseFilter = showOriginal
+    ? "none"
+    : buildFilterString(values, { excludeBlur: useFaceMode });
+
+  // Overlay filter: includes blur (used only on face region)
+  const overlayFilter = useFaceMode ? buildBlurFilterString(values) : "";
+
+  const clipPath = useMemo(
+    () => (useFaceMode ? buildMultiFaceClipPath(faceRegions) : "none"),
+    [useFaceMode, faceRegions]
+  );
 
   return (
     <div
@@ -31,14 +53,34 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => e.preventDefault()}
     >
+      {/* Base image layer — all filters except blur when face mode active */}
       <img
         id="retouch-preview"
         src={imageUrl}
         alt="Preview"
         className="max-w-full max-h-full object-contain transition-[filter] duration-150"
-        style={{ filter: filterStyle }}
+        style={{ filter: baseFilter }}
         draggable={false}
       />
+
+      {/* Face blur overlay — same image with blur, clipped to face region */}
+      {useFaceMode && (
+        <img
+          src={imageUrl}
+          alt=""
+          aria-hidden
+          className="absolute max-w-full max-h-full object-contain transition-[filter,clip-path] duration-150 pointer-events-none"
+          style={{
+            filter: overlayFilter,
+            clipPath,
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+          }}
+          draggable={false}
+        />
+      )}
+
       <Badge
         variant="secondary"
         className="absolute bottom-3 left-3 text-xs font-mono bg-background/70 text-muted-foreground border-border backdrop-blur-sm"

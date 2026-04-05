@@ -35,7 +35,25 @@ export const sliderConfig: SliderConfig[] = [
   { key: "skinSmooth", label: "Skin Smooth", min: 0, max: 50 },
 ];
 
-export function buildFilterString(v: RetouchValues): string {
+export function buildFilterString(
+  v: RetouchValues,
+  options?: { excludeBlur?: boolean }
+): string {
+  const brightness = 1 + v.exposure / 100;
+  const contrast = 1 + v.contrast / 100;
+  const sepia = v.warmth / 100;
+  const hueRotate = v.tint;
+  const blur = options?.excludeBlur ? 0 : (v.skinSmooth / 100) * 1.5;
+
+  let filter = `brightness(${brightness}) contrast(${contrast})`;
+  if (sepia > 0) filter += ` sepia(${sepia})`;
+  if (hueRotate !== 0) filter += ` hue-rotate(${hueRotate}deg)`;
+  if (blur > 0) filter += ` blur(${blur}px)`;
+  return filter;
+}
+
+/** Build a filter string with ONLY the blur component */
+export function buildBlurFilterString(v: RetouchValues): string {
   const brightness = 1 + v.exposure / 100;
   const contrast = 1 + v.contrast / 100;
   const sepia = v.warmth / 100;
