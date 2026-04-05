@@ -22,3 +22,9 @@ export interface SliderConfig {
   min: number;
   max: number;
 }
+
+export interface FaceDetectionState {
+  detected: boolean;
+  count: number;
+  loading: boolean;
+}
