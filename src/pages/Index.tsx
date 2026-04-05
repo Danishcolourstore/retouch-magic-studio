@@ -1,16 +1,17 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Download, Upload } from "lucide-react";
 import { toPng } from "html-to-image";
 import ImageUpload from "@/components/ImageUpload";
 import ImagePreview from "@/components/ImagePreview";
 import ControlPanel from "@/components/ControlPanel";
-import { type RetouchValues, defaultValues } from "@/lib/retouch";
+import { defaultValues } from "@/utils/filters";
+import type { RetouchValues, ImageDimensions } from "@/types";
 
 const Index: React.FC = () => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [dimensions, setDimensions] = useState<ImageDimensions>({ width: 0, height: 0 });
   const [values, setValues] = useState<RetouchValues>({ ...defaultValues });
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageLoad = useCallback(
     (url: string, width: number, height: number) => {

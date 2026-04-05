@@ -1,10 +1,4 @@
-export interface RetouchValues {
-  exposure: number;
-  contrast: number;
-  warmth: number;
-  tint: number;
-  skinSmooth: number;
-}
+import type { RetouchValues, PresetConfig, SliderConfig } from "@/types";
 
 export const defaultValues: RetouchValues = {
   exposure: 0,
@@ -14,7 +8,7 @@ export const defaultValues: RetouchValues = {
   skinSmooth: 0,
 };
 
-export const presets: { name: string; values: RetouchValues }[] = [
+export const presets: PresetConfig[] = [
   {
     name: "Natural Clean",
     values: { exposure: 8, contrast: 10, warmth: 5, tint: 0, skinSmooth: 0 },
@@ -33,12 +27,20 @@ export const presets: { name: string; values: RetouchValues }[] = [
   },
 ];
 
+export const sliderConfig: SliderConfig[] = [
+  { key: "exposure", label: "Exposure", min: -50, max: 50 },
+  { key: "contrast", label: "Contrast", min: -50, max: 50 },
+  { key: "warmth", label: "Warmth", min: 0, max: 50 },
+  { key: "tint", label: "Tint", min: -30, max: 30 },
+  { key: "skinSmooth", label: "Skin Smooth", min: 0, max: 50 },
+];
+
 export function buildFilterString(v: RetouchValues): string {
   const brightness = 1 + v.exposure / 100;
   const contrast = 1 + v.contrast / 100;
   const sepia = v.warmth / 100;
   const hueRotate = v.tint;
-  const blur = (v.skinSmooth / 100) * 1.5; // max 1.5px blur
+  const blur = (v.skinSmooth / 100) * 1.5;
 
   let filter = `brightness(${brightness}) contrast(${contrast})`;
   if (sepia > 0) filter += ` sepia(${sepia})`;
@@ -46,11 +48,3 @@ export function buildFilterString(v: RetouchValues): string {
   if (blur > 0) filter += ` blur(${blur}px)`;
   return filter;
 }
-
-export const sliderConfig = [
-  { key: "exposure" as const, label: "Exposure", min: -50, max: 50 },
-  { key: "contrast" as const, label: "Contrast", min: -50, max: 50 },
-  { key: "warmth" as const, label: "Warmth", min: 0, max: 50 },
-  { key: "tint" as const, label: "Tint", min: -30, max: 30 },
-  { key: "skinSmooth" as const, label: "Skin Smooth", min: 0, max: 50 },
-];

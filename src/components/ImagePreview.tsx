@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback } from "react";
-import { buildFilterString, type RetouchValues } from "@/lib/retouch";
+import React, { useState, useCallback } from "react";
+import { buildFilterString } from "@/utils/filters";
 import { Badge } from "@/components/ui/badge";
+import type { RetouchValues } from "@/types";
 
 interface ImagePreviewProps {
   imageUrl: string;
@@ -16,7 +17,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   values,
 }) => {
   const [showOriginal, setShowOriginal] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
 
   const handlePointerDown = useCallback(() => setShowOriginal(true), []);
   const handlePointerUp = useCallback(() => setShowOriginal(false), []);
@@ -32,7 +32,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       onContextMenu={(e) => e.preventDefault()}
     >
       <img
-        ref={imgRef}
         id="retouch-preview"
         src={imageUrl}
         alt="Preview"
