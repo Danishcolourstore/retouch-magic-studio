@@ -1,27 +1,46 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { RetouchValues } from "@/types";
+import type {
+  RetouchValues,
+  AISuggestionResult,
+  LightingCondition,
+  PhotoContext,
+} from "@/types";
 
-export interface AISuggestionResult {
-  suggestion: string;
-  adjustments: Partial<RetouchValues>;
-}
-
-export type LightingCondition = "low" | "mixed" | "bright";
-export type PhotoContext = "wedding" | "portrait" | "indoor" | "night";
+export type { AISuggestionResult, LightingCondition, PhotoContext };
 
 /**
  * Call the retouch-suggest edge function to get AI-powered
- * retouch recommendations based on current slider values.
+ * retouch decisions based on current slider values and scene context.
  *
  * Does NOT send any image data — only structured numeric values.
  */
 export async function getAISuggestion(
   currentValues: RetouchValues,
-  lighting: LightingCondition = "mixed",
-  context: PhotoContext = "portrait"
+  options: {
+    lighting?: LightingCondition;
+    context?: PhotoContext;
+    faceDetected?: boolean;
+    skinCoverage?: number;
+    outfitDetected?: boolean;
+  } = {}
 ): Promise<AISuggestionResult> {
+  const {
+    lighting = "mixed",
+    context = "portrait",
+    faceDetected = false,
+    skinCoverage = 0,
+    outfitDetected = false,
+  } = options;
+
   const { data, error } = await supabase.functions.invoke("retouch-suggest", {
-    body: { currentValues, lighting, context },
+    body: {
+      currentValues,
+      lighting,
+      context,
+      faceDetected,
+      skinCoverage,
+      outfitDetected,
+    },
   });
 
   if (error) {
@@ -36,5 +55,11 @@ export async function getAISuggestion(
   return {
     suggestion: data.suggestion || "No suggestion available.",
     adjustments: data.adjustments || {},
+    advanced: data.advanced || {
+      frequencySeparation: { enabled: false, intensity: 0 },
+      dodgeBurn: { face: 0, underEyes: 0, highlights: 0 },
+      outfitDodgeBurn: { enabled: false, intensity: 0 },
+      grain: { enabled: false, amount: 0, size: 0, applyTo: "all" },
+    },
   };
 }

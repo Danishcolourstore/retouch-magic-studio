@@ -6,20 +6,58 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are a professional photo retouching expert specializing in Indian wedding photography.
+const SYSTEM_PROMPT = `You are a high-end professional retoucher specializing in Indian wedding photography.
 
-Given adjustment values and lighting conditions, suggest precise improvements.
+Your job is to guide a retouch pipeline, not perform edits.
 
 Rules:
-- Keep skin natural
-- Avoid over-smoothing
-- Maintain highlights
-- Do not exaggerate colors
+- Skin must remain natural (no plastic smoothing)
+- Preserve pores and texture
+- Avoid highlight clipping
+- Maintain accurate Indian skin tones (Fitzpatrick III–VI)
+- Avoid over-warming or green tint shifts
 
-You MUST respond with valid JSON in this exact format:
-{"suggestion":"<short suggestion text>","adjustments":{"exposure":<number>,"contrast":<number>,"warmth":<number>,"tint":<number>,"skinSmooth":<number>}}
+Decision Logic:
+- Use frequency separation only when skin texture needs refinement
+- Use dodge & burn for shaping face, not flattening
+- Apply separate dodge & burn for outfits when fabric detail needs enhancement
+- Add grain only when image looks overly digital or flat
+- Never over-process
 
-Only include adjustment keys that should change. Values: exposure -50 to 50, contrast -50 to 50, warmth 0 to 50, tint -30 to 30, skinSmooth 0 to 50.`;
+You MUST respond with ONLY valid JSON in this exact format (no markdown, no explanation):
+{
+  "suggestion": "<short professional suggestion>",
+  "adjustments": {
+    "exposure": <number -50 to 50>,
+    "contrast": <number -50 to 50>,
+    "warmth": <number 0 to 50>,
+    "tint": <number -30 to 30>,
+    "skinSmooth": <number 0 to 50>
+  },
+  "advanced": {
+    "frequencySeparation": {
+      "enabled": <boolean>,
+      "intensity": <number 0-100>
+    },
+    "dodgeBurn": {
+      "face": <number -100 to 100>,
+      "underEyes": <number -100 to 100>,
+      "highlights": <number -100 to 100>
+    },
+    "outfitDodgeBurn": {
+      "enabled": <boolean>,
+      "intensity": <number 0-100>
+    },
+    "grain": {
+      "enabled": <boolean>,
+      "amount": <number 0-100>,
+      "size": <number 0-100>,
+      "applyTo": "shadows" | "midtones" | "highlights" | "all"
+    }
+  }
+}
+
+Only include adjustment keys that should change from current values. Return only JSON.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -27,15 +65,33 @@ serve(async (req) => {
   }
 
   try {
-    const { currentValues, lighting, context } = await req.json();
+    const body = await req.json();
+    const {
+      currentValues,
+      lighting = "mixed",
+      context = "portrait",
+      faceDetected = false,
+      skinCoverage = 0,
+      outfitDetected = false,
+    } = body;
+
+    if (!currentValues || typeof currentValues !== "object") {
+      return new Response(
+        JSON.stringify({ error: "currentValues is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const userMessage = JSON.stringify({
       currentValues,
-      lighting: lighting || "mixed",
-      context: context || "portrait",
+      lighting,
+      context,
+      faceDetected,
+      skinCoverage,
+      outfitDetected,
     });
 
     const response = await fetch(
@@ -77,15 +133,48 @@ serve(async (req) => {
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
 
-    // Parse the JSON from the AI response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    // Parse JSON from AI response (strip markdown fences if present)
+    const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.error("Unparseable AI response:", content);
       throw new Error("Invalid AI response format");
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    return new Response(JSON.stringify(parsed), {
+    // Validate structure - ensure required fields exist with defaults
+    const result = {
+      suggestion: parsed.suggestion || "No suggestion available.",
+      adjustments: parsed.adjustments || {},
+      advanced: {
+        frequencySeparation: {
+          enabled: false,
+          intensity: 0,
+          ...parsed.advanced?.frequencySeparation,
+        },
+        dodgeBurn: {
+          face: 0,
+          underEyes: 0,
+          highlights: 0,
+          ...parsed.advanced?.dodgeBurn,
+        },
+        outfitDodgeBurn: {
+          enabled: false,
+          intensity: 0,
+          ...parsed.advanced?.outfitDodgeBurn,
+        },
+        grain: {
+          enabled: false,
+          amount: 0,
+          size: 0,
+          applyTo: "all" as const,
+          ...parsed.advanced?.grain,
+        },
+      },
+    };
+
+    return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
