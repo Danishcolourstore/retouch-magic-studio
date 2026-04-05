@@ -1,25 +1,61 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Download, Upload } from "lucide-react";
 import { toPng } from "html-to-image";
 import ImageUpload from "@/components/ImageUpload";
 import ImagePreview from "@/components/ImagePreview";
 import ControlPanel from "@/components/ControlPanel";
 import { defaultValues } from "@/utils/filters";
-import type { RetouchValues, ImageDimensions } from "@/types";
+import { detectFaces, type FaceRegion } from "@/lib/mediapipe";
+import { getRetouchSuggestion } from "@/lib/openai";
+import type { RetouchValues, ImageDimensions, FaceDetectionState } from "@/types";
 
 const Index: React.FC = () => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState<ImageDimensions>({ width: 0, height: 0 });
   const [values, setValues] = useState<RetouchValues>({ ...defaultValues });
+  const [faceRetouchEnabled, setFaceRetouchEnabled] = useState(true);
+  const [faceState, setFaceState] = useState<FaceDetectionState>({
+    detected: false,
+    count: 0,
+    loading: false,
+  });
+  const [faceRegions, setFaceRegions] = useState<FaceRegion[]>([]);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const runFaceDetection = useCallback(async (url: string) => {
+    setFaceState({ detected: false, count: 0, loading: true });
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = url;
+    await new Promise<void>((resolve) => {
+      img.onload = () => resolve();
+    });
+
+    const regions = await detectFaces(img);
+    setFaceRegions(regions);
+    setFaceState({
+      detected: regions.length > 0,
+      count: regions.length,
+      loading: false,
+    });
+  }, []);
+
   const handleImageLoad = useCallback(
-    (url: string, width: number, height: number) => {
+    async (url: string, width: number, height: number) => {
       setImageUrl(url);
       setDimensions({ width, height });
       setValues({ ...defaultValues });
+      setSuggestion(null);
+
+      // Run face detection
+      runFaceDetection(url);
+
+      // Get AI suggestion
+      const result = await getRetouchSuggestion({ width, height });
+      setSuggestion(result.text);
     },
-    []
+    [runFaceDetection]
   );
 
   const handleExport = useCallback(async () => {
@@ -54,7 +90,15 @@ const Index: React.FC = () => {
           Retouch Studio
         </h1>
         {imageUrl && (
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
+            {/* Face detection indicator */}
+            {faceState.loading ? (
+              <span className="text-xs text-muted-foreground px-2">Scanning…</span>
+            ) : faceState.detected ? (
+              <span className="text-xs text-accent px-2">
+                👤 {faceState.count} face{faceState.count > 1 ? "s" : ""}
+              </span>
+            ) : null}
             <button
               onClick={handleNewUpload}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground active:text-foreground transition-colors"
@@ -81,6 +125,13 @@ const Index: React.FC = () => {
         onChange={handleFileChange}
       />
 
+      {/* AI Suggestion banner */}
+      {suggestion && imageUrl && (
+        <div className="px-4 py-1.5 border-b border-border">
+          <p className="text-xs text-muted-foreground italic">💡 {suggestion}</p>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 relative overflow-hidden">
         {!imageUrl ? (
@@ -93,9 +144,17 @@ const Index: React.FC = () => {
                 width={dimensions.width}
                 height={dimensions.height}
                 values={values}
+                faceRegions={faceRegions}
+                faceRetouchEnabled={faceRetouchEnabled}
               />
             </div>
-            <ControlPanel values={values} onChange={setValues} />
+            <ControlPanel
+              values={values}
+              onChange={setValues}
+              faceRetouchEnabled={faceRetouchEnabled}
+              onFaceRetouchToggle={setFaceRetouchEnabled}
+              faceDetected={faceState.detected}
+            />
           </>
         )}
       </div>
