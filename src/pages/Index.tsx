@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Download, Upload } from "lucide-react";
 import { toPng } from "html-to-image";
 import ImageUpload from "@/components/ImageUpload";
@@ -6,7 +6,6 @@ import ImagePreview from "@/components/ImagePreview";
 import ControlPanel from "@/components/ControlPanel";
 import { defaultValues } from "@/utils/filters";
 import { detectFaces, type FaceRegion } from "@/lib/mediapipe";
-import { getRetouchSuggestion } from "@/lib/openai";
 import type { RetouchValues, ImageDimensions, FaceDetectionState } from "@/types";
 
 const Index: React.FC = () => {
@@ -20,7 +19,6 @@ const Index: React.FC = () => {
     loading: false,
   });
   const [faceRegions, setFaceRegions] = useState<FaceRegion[]>([]);
-  const [suggestion, setSuggestion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const runFaceDetection = useCallback(async (url: string) => {
@@ -46,14 +44,7 @@ const Index: React.FC = () => {
       setImageUrl(url);
       setDimensions({ width, height });
       setValues({ ...defaultValues });
-      setSuggestion(null);
-
-      // Run face detection
       runFaceDetection(url);
-
-      // Get AI suggestion
-      const result = await getRetouchSuggestion({ width, height });
-      setSuggestion(result.text);
     },
     [runFaceDetection]
   );
@@ -91,7 +82,6 @@ const Index: React.FC = () => {
         </h1>
         {imageUrl && (
           <div className="flex items-center gap-1">
-            {/* Face detection indicator */}
             {faceState.loading ? (
               <span className="text-xs text-muted-foreground px-2">Scanning…</span>
             ) : faceState.detected ? (
@@ -124,13 +114,6 @@ const Index: React.FC = () => {
         className="hidden"
         onChange={handleFileChange}
       />
-
-      {/* AI Suggestion banner */}
-      {suggestion && imageUrl && (
-        <div className="px-4 py-1.5 border-b border-border">
-          <p className="text-xs text-muted-foreground italic">💡 {suggestion}</p>
-        </div>
-      )}
 
       {/* Content */}
       <div className="flex-1 relative overflow-hidden">
