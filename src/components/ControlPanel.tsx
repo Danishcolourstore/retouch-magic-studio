@@ -1,10 +1,14 @@
 import React, { useState } from "react";
+import { Sparkles } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import BottomSheet from "@/components/BottomSheet";
 import PresetButtons from "@/components/PresetButtons";
 import { presets, sliderConfig, defaultValues } from "@/utils/filters";
+import { getAISuggestion, type AISuggestionResult, type LightingCondition, type PhotoContext } from "@/lib/openai";
 import type { RetouchValues } from "@/types";
+import { toast } from "sonner";
 
 interface ControlPanelProps {
   values: RetouchValues;
@@ -23,12 +27,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(true);
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<AISuggestionResult | null>(null);
 
   const applyPreset = (name: string) => {
     const preset = presets.find((p) => p.name === name);
     if (preset) {
       onChange({ ...preset.values });
       setActivePreset(name);
+      setAiResult(null);
     }
   };
 
@@ -40,6 +47,28 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const handleReset = () => {
     onChange({ ...defaultValues });
     setActivePreset(null);
+    setAiResult(null);
+  };
+
+  const handleAISuggest = async () => {
+    setAiLoading(true);
+    try {
+      const result = await getAISuggestion(values);
+      setAiResult(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "AI suggestion failed";
+      toast.error(msg);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleApplyAI = () => {
+    if (!aiResult?.adjustments) return;
+    const next = { ...values, ...aiResult.adjustments };
+    onChange(next);
+    setActivePreset(null);
+    toast.success("AI adjustments applied");
   };
 
   return (
@@ -51,6 +80,37 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         onReset={handleReset}
       />
 
+      {/* AI Suggest */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleAISuggest}
+            disabled={aiLoading}
+            className="min-h-[44px] gap-1.5"
+          >
+            <Sparkles className="w-4 h-4" />
+            {aiLoading ? "Thinking…" : "AI Suggest"}
+          </Button>
+          {aiResult && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleApplyAI}
+              className="min-h-[44px]"
+            >
+              Apply
+            </Button>
+          )}
+        </div>
+        {aiResult && (
+          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+            💡 {aiResult.suggestion}
+          </p>
+        )}
+      </div>
+
       {/* Face Retouch toggle */}
       <div className="flex items-center justify-between mb-4 py-1">
         <div className="flex items-center gap-2">
@@ -61,9 +121,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             </span>
           )}
           {!faceDetected && (
-            <span className="text-[10px] text-muted-foreground">
-              No face
-            </span>
+            <span className="text-[10px] text-muted-foreground">No face</span>
           )}
         </div>
         <Switch
