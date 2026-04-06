@@ -1,6 +1,9 @@
 export interface RetouchValues {
   exposure: number;
   contrast: number;
+  saturation: number;
+  highlights: number;
+  shadows: number;
   warmth: number;
   tint: number;
   skinSmooth: number;
