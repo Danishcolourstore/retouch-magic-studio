@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from "react";
 import { Download, Upload } from "lucide-react";
-import { toPng } from "html-to-image";
+import { toast } from "sonner";
 import ImageUpload from "@/components/ImageUpload";
 import ImagePreview from "@/components/ImagePreview";
 import ControlPanel from "@/components/ControlPanel";
