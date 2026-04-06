@@ -3,7 +3,6 @@ import { Sparkles } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import BottomSheet from "@/components/BottomSheet";
 import PresetButtons from "@/components/PresetButtons";
 import AdvancedPanel from "@/components/AdvancedPanel";
 import { presets, sliderConfig, defaultValues } from "@/utils/filters";
@@ -26,7 +25,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onFaceRetouchToggle,
   faceDetected,
 }) => {
-  const [expanded, setExpanded] = useState(true);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AISuggestionResult | null>(null);
@@ -77,7 +75,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   return (
-    <BottomSheet expanded={expanded} onExpandedChange={setExpanded}>
+    <div className="px-4 py-4 space-y-4">
       <PresetButtons
         presets={presets}
         activePreset={activePreset}
@@ -86,7 +84,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       />
 
       {/* AI Suggest */}
-      <div className="mb-4">
+      <div>
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
@@ -120,7 +118,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       {/* Face Retouch toggle */}
-      <div className="flex items-center justify-between mb-4 py-1">
+      <div className="flex items-center justify-between py-1">
         <div className="flex items-center gap-2">
           <span className="text-sm text-foreground">Face Retouch</span>
           {faceDetected && faceRetouchEnabled && (
@@ -138,7 +136,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         />
       </div>
 
-      <div className="space-y-4">
+      {/* Sliders */}
+      <div className="space-y-4 pb-8">
         {sliderConfig.map((s) => (
           <div key={s.key}>
             <div className="flex items-center justify-between mb-1.5">
@@ -163,7 +162,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         ))}
       </div>
-    </BottomSheet>
+    </div>
   );
 };
 
