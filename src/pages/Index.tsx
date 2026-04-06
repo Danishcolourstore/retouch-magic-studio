@@ -74,7 +74,7 @@ const Index: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-background">
+    <div className="fixed inset-0 flex flex-col bg-background" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 h-12 shrink-0 border-b border-border">
         <h1 className="text-sm font-semibold text-foreground tracking-tight">
@@ -115,22 +115,27 @@ const Index: React.FC = () => {
         onChange={handleFileChange}
       />
 
-      {/* Content */}
-      <div className="flex-1 relative overflow-hidden">
-        {!imageUrl ? (
+      {/* Content — stacked: image on top, controls below */}
+      {!imageUrl ? (
+        <div className="flex-1 overflow-hidden">
           <ImageUpload onImageLoad={handleImageLoad} />
-        ) : (
-          <>
-            <div className="absolute inset-0 pb-16">
-              <ImagePreview
-                imageUrl={imageUrl}
-                width={dimensions.width}
-                height={dimensions.height}
-                values={values}
-                faceRegions={faceRegions}
-                faceRetouchEnabled={faceRetouchEnabled}
-              />
-            </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Image preview — always visible, takes ~45% of remaining space */}
+          <div className="shrink-0 h-[45vh] min-h-[200px] border-b border-border">
+            <ImagePreview
+              imageUrl={imageUrl}
+              width={dimensions.width}
+              height={dimensions.height}
+              values={values}
+              faceRegions={faceRegions}
+              faceRetouchEnabled={faceRetouchEnabled}
+            />
+          </div>
+
+          {/* Controls — scrollable bottom section */}
+          <div className="flex-1 overflow-y-auto overscroll-contain">
             <ControlPanel
               values={values}
               onChange={setValues}
@@ -138,9 +143,9 @@ const Index: React.FC = () => {
               onFaceRetouchToggle={setFaceRetouchEnabled}
               faceDetected={faceState.detected}
             />
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
