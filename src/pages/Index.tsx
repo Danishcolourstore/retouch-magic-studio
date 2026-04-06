@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from "react";
 import { Download, Upload } from "lucide-react";
-import { toPng } from "html-to-image";
+import { toast } from "sonner";
 import ImageUpload from "@/components/ImageUpload";
 import ImagePreview from "@/components/ImagePreview";
 import ControlPanel from "@/components/ControlPanel";
@@ -50,16 +50,18 @@ const Index: React.FC = () => {
   );
 
   const handleExport = useCallback(async () => {
-    const el = document.getElementById("retouch-preview");
-    if (!el) return;
+    const canvas = document.getElementById("retouch-preview") as HTMLCanvasElement | null;
+    if (!canvas) return;
     try {
-      const dataUrl = await toPng(el, { pixelRatio: 2 });
+      const dataUrl = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.download = "retouch-export.png";
       link.href = dataUrl;
       link.click();
+      toast.success("Image exported");
     } catch (err) {
       console.error("Export failed", err);
+      toast.error("Export failed");
     }
   }, []);
 
