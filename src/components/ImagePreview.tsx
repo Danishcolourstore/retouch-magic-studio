@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useMemo } from "react";
-import { buildFilterString, buildBlurFilterString } from "@/utils/filters";
-import { buildMultiFaceClipPath, type FaceRegion } from "@/lib/mediapipe";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
+import { processPixels, getOriginalPixels } from "@/lib/imageProcessor";
 import type { RetouchValues } from "@/types";
+import type { FaceRegion } from "@/lib/mediapipe";
 
 interface ImagePreviewProps {
   imageUrl: string;
@@ -22,62 +22,114 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   faceRetouchEnabled,
 }) => {
   const [showOriginal, setShowOriginal] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const originalRef = useRef<{ imageData: ImageData; width: number; height: number } | null>(null);
+  const rafRef = useRef<number>(0);
 
   const handlePointerDown = useCallback(() => setShowOriginal(true), []);
   const handlePointerUp = useCallback(() => setShowOriginal(false), []);
 
+  // Load original pixel data when image changes
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      originalRef.current = getOriginalPixels(img);
+      // Trigger initial render
+      renderCanvas(values, false);
+    };
+    img.src = imageUrl;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrl]);
+
+  const renderCanvas = useCallback((vals: RetouchValues, original: boolean) => {
+    const orig = originalRef.current;
+    const canvas = canvasRef.current;
+    if (!orig || !canvas) return;
+
+    canvas.width = orig.width;
+    canvas.height = orig.height;
+    const ctx = canvas.getContext("2d")!;
+
+    if (original) {
+      ctx.putImageData(orig.imageData, 0, 0);
+      return;
+    }
+
+    const dst = ctx.createImageData(orig.width, orig.height);
+    processPixels(orig.imageData, dst, vals);
+    ctx.putImageData(dst, 0, 0);
+
+    // Apply skin smooth as CSS blur on the face region overlay if needed
+    // (keeping face-aware blur as CSS for performance)
+  }, []);
+
+  // Re-render when values or showOriginal changes
+  useEffect(() => {
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      renderCanvas(values, showOriginal);
+    });
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [values, showOriginal, renderCanvas]);
+
+  // Face blur via CSS on a duplicate canvas — only for skin smooth
   const useFaceMode =
     faceRetouchEnabled &&
     faceRegions.length > 0 &&
     values.skinSmooth > 0 &&
     !showOriginal;
 
-  // Base filter: all filters, but exclude blur when face mode is active
-  const baseFilter = showOriginal
-    ? "none"
-    : buildFilterString(values, { excludeBlur: useFaceMode });
+  const blurAmount = (values.skinSmooth / 100) * 1.5;
 
-  // Overlay filter: includes blur (used only on face region)
-  const overlayFilter = useFaceMode ? buildBlurFilterString(values) : "";
-
-  const clipPath = useMemo(
-    () => (useFaceMode ? buildMultiFaceClipPath(faceRegions) : "none"),
-    [useFaceMode, faceRegions]
-  );
+  const clipPath = useMemo(() => {
+    if (!useFaceMode) return "none";
+    const paths = faceRegions.map((r) => {
+      const cx = (r.x + r.width / 2) * 100;
+      const cy = (r.y + r.height / 2) * 100;
+      const rx = (r.width / 2) * 100;
+      const ry = (r.height / 2) * 100;
+      return `ellipse(${rx}% ${ry}% at ${cx}% ${cy}%)`;
+    });
+    return paths.length === 1 ? paths[0] : paths[0]; // single face simplification
+  }, [useFaceMode, faceRegions]);
 
   return (
     <div
-      className="relative flex items-center justify-center h-full w-full overflow-hidden select-none"
+      className="relative flex items-center justify-center h-full w-full overflow-hidden select-none bg-background"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Base image layer — all filters except blur when face mode active */}
-      <img
+      <canvas
+        ref={canvasRef}
         id="retouch-preview"
-        src={imageUrl}
-        alt="Preview"
-        className="max-w-full max-h-full object-contain transition-[filter] duration-150"
-        style={{ filter: baseFilter }}
-        draggable={false}
+        className="max-w-full max-h-full object-contain"
+        style={{ imageRendering: "auto" }}
       />
 
-      {/* Face blur overlay — same image with blur, clipped to face region */}
+      {/* Face blur overlay — CSS blur clipped to face region */}
       {useFaceMode && (
-        <img
-          src={imageUrl}
-          alt=""
-          aria-hidden
-          className="absolute max-w-full max-h-full object-contain transition-[filter,clip-path] duration-150 pointer-events-none"
+        <canvas
+          ref={(el) => {
+            // Mirror main canvas content to overlay for blur
+            if (el && canvasRef.current) {
+              const main = canvasRef.current;
+              el.width = main.width;
+              el.height = main.height;
+              const ctx = el.getContext("2d");
+              if (ctx) ctx.drawImage(main, 0, 0);
+            }
+          }}
+          className="absolute max-w-full max-h-full object-contain pointer-events-none"
           style={{
-            filter: overlayFilter,
+            filter: `blur(${blurAmount}px)`,
             clipPath,
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
           }}
-          draggable={false}
         />
       )}
 
